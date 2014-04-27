@@ -3,7 +3,7 @@ Client = require './client'
 
 l = new Client
     name: "Log Sender man"
-    commands:
-        log: (message) ->
-            log message.data
+    commands: ['log']
+    log: (message) ->
+        log message.data
 
