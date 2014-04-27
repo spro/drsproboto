@@ -2,6 +2,7 @@ zmq = require 'zmq'
 {EventEmitter} = require 'events'
 {log} = require './helpers'
 _ = require 'underscore'
+util = require 'util'
 
 HEARTBEAT_TIMEOUT = 1000 * 5
 REGISTRATION_TIMEOUT = 1000 * 5
@@ -9,6 +10,7 @@ REGISTRATION_TIMEOUT = 1000 * 5
 class Callosum extends EventEmitter
 
     pendingRegistrations: {}
+    pendingCommands: {}
     registeredClients: {}
     registeredHandlers: {}
 
@@ -61,6 +63,13 @@ class Callosum extends EventEmitter
             @registeredClients[client.id].last_seen = now
 
     handleMessage: (client_id, message) ->
+        if message.command?
+            @handleCommand client_id, message
+
+        else if message.response?
+            @pendingCommands[message.response](message)
+
+    handleCommand: (client_id, message) ->
         switch message.command
 
             when 'register'
@@ -70,15 +79,23 @@ class Callosum extends EventEmitter
                 @handleHeartbeat message.args
 
             else
-                # TODO: Look up handler
-                if client_ids = @registeredHandlers[message.command]
-                    # Cycle them
-                    client_id = client_ids.shift()
-                    client_ids.push client_id
-                    @send client_id, message
+                log "<#{ client_id }>: #{ util.inspect message }"
 
-    # See if there are any dead clients by comparing their last heartbeat times
-    # to the timeout interval. 
+                @handleClientCommand client_id, message
+
+    handleClientCommand: (from_client_id, command_message) ->
+        if to_client_ids = @registeredHandlers[command_message.command]
+            # Get an available handler client
+            to_client_id = to_client_ids.shift()
+            to_client_ids.push to_client_id
+            # Set up repsonse callback
+            @pendingCommands[command_message.id] = (response_message) =>
+                @send from_client_id, response_message
+            # Send it off
+            @send to_client_id, command_message
+
+    # See if there are any dead clients by comparing their last
+    # heartbeat times to the timeout interval. 
     checkup: ->
         now = new Date().getTime()
         for client_id, client of @registeredClients
