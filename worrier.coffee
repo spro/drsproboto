@@ -1,7 +1,7 @@
-Handler = require './module'
+Client = require './client'
 config = require './config'
 
-h = new Handler
+h = new Client
     name: 'Worrying about the time guy'
 
 setInterval ->

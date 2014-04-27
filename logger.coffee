@@ -1,7 +1,7 @@
-Handler = require './module'
+Client = require './client'
 {log} = require './helpers'
 
-l = new Handler
+l = new Client
     name: "Log Sender man"
     commands:
         log: (message) ->

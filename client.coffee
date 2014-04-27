@@ -5,10 +5,12 @@ util = require 'util'
 _ = require 'underscore'
 config = require './config'
 
-class Handler extends EventEmitter
+class Handler 
+
+class Client extends EventEmitter
     
     id: randomString 36
-    name: 'Generic Handler'
+    name: 'Generic Client'
     callosum_address: config.callosum.address
     commands: {}
 
@@ -19,7 +21,7 @@ class Handler extends EventEmitter
         @socket.on 'message', (message_json) =>
             @handleMessage JSON.parse message_json
         @socket.connect @callosum_address
-        log "Handler connected to " + @callosum_address
+        log "Client connected to " + @callosum_address
         @sendRegister()
         @startHeartbeats()
 
@@ -58,7 +60,8 @@ class Handler extends EventEmitter
                     log "Got an unknown message: " + util.inspect message
 
 if require.main == module
-    new Handler
+    new Client
 
 else
-    module.exports = Handler
+    module.exports = Client
+
