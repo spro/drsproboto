@@ -5,11 +5,9 @@ util = require 'util'
 config = require './config'
 _ = require 'underscore'
 
-class Handler
-
 class Client extends EventEmitter
 
-    id: randomString 32
+    id: randomString 8
     name: 'Generic Client'
     callosum_address: config.callosum.address
     commands: []
@@ -27,21 +25,29 @@ class Client extends EventEmitter
         @sendRegister()
         @startHeartbeats()
 
+        process.on 'SIGINT', =>
+            @sendUnregister()
+            process.exit()
+
     send: (message) ->
         message.id = randomString 16
         @socket.send JSON.stringify message
 
+    sendUnregister: ->
+        @send
+            type: 'unregister'
+
     sendRegister: ->
         @send
-            command: 'register'
+            type: 'register'
             args:
                 id: @id
                 name: @name
-                handlers: @commands
+                handlers: _.keys @commands
 
     sendHeartbeat: ->
         @send
-            command: 'heartbeat'
+            type: 'heartbeat'
             args:
                 id: @id
                 name: @name
@@ -57,8 +63,15 @@ class Client extends EventEmitter
                 @sendRegister()
 
             else
-                if @[message.command]?
-                    @[message.command](message)
+                if @commands[message.command]?
+                    # Command may call back response data or a full response message
+                    @commands[message.command] message, (err, data, response) =>
+                        if !response?
+                            response =
+                                data: data
+                        response.type = 'response'
+                        response.rid = message.id
+                        @send response
 
         @emit 'message', message
 
