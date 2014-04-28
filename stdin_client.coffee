@@ -25,10 +25,9 @@ rl.on 'line', (line) ->
         message = last_message
 
     else
-        parts = line.split(' ')
         message =
-            command: parts[0]
-            data: parts[1..].join(' ')
+            type: 'script'
+            script: line
         last_message = message
 
     stdin_client.send message
