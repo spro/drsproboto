@@ -24,6 +24,7 @@ scheduler_client = new Client
             new_event =
                 message:
                     id: message.id
+                    origin: message.origin
                     type: 'script'
                     script: message.args.slice(1).join(' ')
                 time: (new Date(now.getFullYear(), now.getMonth(), now.getDate(), t_h, t_m, t_s)).getTime()
@@ -68,7 +69,11 @@ scheduler_client = new Client
                 if tt.match /^s/
                     dt = t * 1000
                 new_event =
-                    message: message
+                    message:
+                        id: message.id
+                        origin: message.origin
+                        type: 'script'
+                        script: message.args.slice(1).join(' ')
                     time: (new Date()).getTime() + dt
                     interval: dt
                     interval_raw: matched.slice(1, 3).join('')
