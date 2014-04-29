@@ -4,6 +4,7 @@ zmq = require 'zmq'
 _ = require 'underscore'
 pipeline = require '../qnectar/pipeline/pipeline'
 util = require 'util'
+redis = require('redis').createClient()
 
 VERBOSE = false
 HEARTBEAT_TIMEOUT = 1000 * 5
@@ -205,6 +206,35 @@ CallosumContext::lookup = (cmd) ->
                 callosum.send to_client_id, command_message
                 callosum.pending_commands[command_message.id] = cb
     return found
-callosum_context = new CallosumContext()
-callosum_context.use 'html'
 
+callosum_context = new CallosumContext()
+    .use('html')
+    .use(require('../qnectar/pipeline/modules/redis').connect())
+
+callosum_context.fns.alias = (inp, args, ctx, cb) ->
+    alias = args[0]
+    script = args[1]
+    if !script
+        # Showing an alias
+        cb null, ctx.env.aliases[alias]
+    else
+        # Setting an alias
+        ctx.alias alias, script
+        cb null,
+            success: true
+            alias: alias
+            script: script
+
+        # Save in Redis
+        redis.set 'aliases:' + alias, script
+
+# Get saved aliases
+bootstrap_redis_aliases = '''
+    redis keys aliases:* @: {
+        alias: $( split ":" @ 1 ),
+        script: $( redis get $! )
+    }
+'''
+pipeline.execPipelines bootstrap_redis_aliases, null, callosum_context, (err, saved_aliases) =>
+    for alias in saved_aliases
+        callosum_context.alias alias.alias, alias.script
