@@ -1,0 +1,10 @@
+config.coffee
+
+*.swp
+*.swo
+*.rdb
+
+data/
+logs/
+static/files/
+node_modules/
