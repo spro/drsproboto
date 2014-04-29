@@ -5,7 +5,7 @@ _ = require 'underscore'
 pipeline = require '../qnectar/pipeline/pipeline'
 util = require 'util'
 
-VERBOSE = true
+VERBOSE = false
 HEARTBEAT_TIMEOUT = 1000 * 5
 REGISTRATION_TIMEOUT = 1000 * 5
 
@@ -39,6 +39,15 @@ class Callosum
         # Unregister client
         delete @registered_clients[client_id]
         log "Unregistered client: #{ client_id }"
+
+    # Expects a message in the format
+    # 
+    # ```
+    # type: "register"
+    # args:
+    #     name: "Example Client"
+    #     handlers: ["handler1", "handler2"]
+    # ```
 
     registerClient: (client_id, message) ->
         if !@registered_clients[client_id]?
@@ -106,9 +115,15 @@ class Callosum
     handleScript: (client_id, message) ->
         log "<#{ client_id }> → SCRIPT [#{ message.id }] #{ message.script }"
         pipeline.execPipelines message.script, message.data, callosum_context, (err, data) =>
-            @send client_id,
-                id: message.id
-                data: data
+            if err
+                log 'ERROR ' + err
+                @send client_id,
+                    id: message.id
+                    error: err.toString()
+            else
+                @send client_id,
+                    id: message.id
+                    data: data
 
     handleCommand: (client_id, message) ->
         log "<#{ client_id }> → COMMAND [#{ message.id }] #{ message.command }"
