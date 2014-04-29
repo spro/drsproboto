@@ -5,6 +5,8 @@ util = require 'util'
 config = require './config'
 _ = require 'underscore'
 
+HEARTBEAT_INTERVAL = 5000
+
 class Client extends EventEmitter
 
     id: randomString 8
@@ -17,7 +19,7 @@ class Client extends EventEmitter
         @socket = zmq.socket 'dealer'
         @socket.identity = @id
         @socket.connect @callosum_address
-        log "Client connected to " + @callosum_address
+        log "#{ @name } connected to #{ @callosum_address }"
 
         @socket.on 'message', (message_json) =>
             @handleMessage JSON.parse message_json
@@ -32,6 +34,7 @@ class Client extends EventEmitter
     send: (message) ->
         message.id = randomString 16
         @socket.send JSON.stringify message
+        message
 
     sendUnregister: ->
         @send
@@ -53,7 +56,7 @@ class Client extends EventEmitter
                 name: @name
 
     startHeartbeats: ->
-        setInterval (=> @sendHeartbeat.call(@)), 1000
+        setInterval (=> @sendHeartbeat.call(@)), HEARTBEAT_INTERVAL
 
     handleMessage: (message) ->
         switch message.command
