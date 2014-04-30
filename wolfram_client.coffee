@@ -1,5 +1,6 @@
 Client = require './client'
-wolfram = require('wolfram').createClient('LQUR86-WLTWTVP9AV')
+config = require './config'
+wolfram = require('wolfram').createClient(config.wolfram.app_key)
 
 wolfram_client = new Client
     name: 'Wolfram Alpha client'
