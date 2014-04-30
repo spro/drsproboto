@@ -53,9 +53,9 @@ class Callosum
 
     registerClient: (client_id, message) ->
         if !@registered_clients[client_id]?
-            log "New client registered: #{ message.args.name } (#{ client_id })"
+            log "New client registered: #{ message.args.name } (#{ client_id })", color: 'yellow'
         else
-            log "Re-registering client: #{ message.args.name } (#{ client_id })"
+            log "Re-registering client: #{ message.args.name } (#{ client_id })", color: 'yellow'
 
         @registered_clients[client_id] = message.args
         @registered_clients[client_id].last_seen = new Date().getTime()
@@ -69,7 +69,7 @@ class Callosum
         if !@registered_handlers[handler]?
             @registered_handlers[handler] = []
         @registered_handlers[handler].push client_id
-        log "Registered handler: #{ handler }"
+        log "Registered handler: #{ handler }", color: 'brightYellow'
 
     handleHeartbeat: (client_id, message) ->
         now = new Date().getTime()
@@ -115,10 +115,10 @@ class Callosum
                 log 'Unrecognized message: ' + util.inspect message
 
     handleScript: (client_id, message) ->
-        log "<#{ client_id }> → SCRIPT [#{ message.id }] #{ message.script }"
+        log "<#{ client_id }> → SCRIPT [#{ message.id }] #{ message.script }", color: 'cyan'
         pipeline.execPipelines message.script, message.data, callosum_context, (err, data) =>
             if err
-                log 'ERROR ' + err
+                log 'ERROR ' + err, color: 'red'
                 @send client_id,
                     id: message.id
                     error: err.toString()
@@ -128,7 +128,7 @@ class Callosum
                     data: data
 
     handleCommand: (client_id, message) ->
-        log "<#{ client_id }> → COMMAND [#{ message.id }] #{ message.command }"
+        log "<#{ client_id }> → COMMAND [#{ message.id }] #{ message.command }", color: 'blue'
         if handler_client_id = @selectHandler message.command
             # Set up repsonse callback
             if !message.origin?
@@ -139,7 +139,7 @@ class Callosum
             @send handler_client_id, message
 
     handleResponse: (client_id, message) ->
-        log "<#{ client_id }> → RESPONSE [#{ message.rid }]"
+        log "<#{ client_id }> → RESPONSE [#{ message.rid }]", color: 'green'
         pending_command = @pending_commands[message.rid]
         if _.isFunction pending_command
             pending_command null, message.data

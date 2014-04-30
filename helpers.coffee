@@ -1,10 +1,17 @@
 moment = require 'moment'
 _ = require 'underscore'
 util = require 'util'
+ansi = require('ansi')(process.stdout)
 
 date_format = 'YYYY-MM-DD hh:mm:ss'
-exports.log = (s) ->
-    console.log "[#{ moment().format(date_format) }] #{ s }"
+exports.log = (s, options={}) ->
+    ansi.grey()
+    ansi.write '[' + moment().format(date_format) + '] '
+    ansi.reset()
+    ansi.hex(options.hex) if options.hex?
+    ansi.fg[options.color]() if options.color?
+    ansi.write s + '\n'
+    ansi.reset()
 
 exports.randomString = (len=5) ->
     s = ''
