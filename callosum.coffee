@@ -40,7 +40,7 @@ class Callosum
 
         # Unregister client
         delete @registered_clients[client_id]
-        log "Unregistered client: #{ client_id }"
+        log "Unregistered client: #{ client_id }", color: 'red'
 
     # Expects a message in the format
     # 
