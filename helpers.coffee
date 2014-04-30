@@ -4,10 +4,13 @@ util = require 'util'
 ansi = require('ansi')(process.stdout)
 
 date_format = 'YYYY-MM-DD hh:mm:ss'
-exports.log = (s, options={}) ->
+logDate = ->
     ansi.grey()
     ansi.write '[' + moment().format(date_format) + '] '
     ansi.reset()
+
+exports.log = (s, options={}) ->
+    logDate() if !options.date? or options.date
     ansi.hex(options.hex) if options.hex?
     ansi.fg[options.color]() if options.color?
     ansi.write s + '\n'

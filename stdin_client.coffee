@@ -1,5 +1,6 @@
-readline = require 'readline'
 Client = require './client'
+readline = require 'readline'
+{log, stringify} = require './helpers'
 os = require 'os'
 
 class StdinClient extends Client
@@ -7,7 +8,10 @@ class StdinClient extends Client
 
 stdin_client = new StdinClient
 stdin_client.on 'message', (message) ->
-    console.log message.summary || message.data
+    if message.error
+        log '[ERROR] ' + stringify(message.error), color: 'red', date: false
+    else
+        log stringify(message.summary || message.data), color: 'green', date: false
     rl.prompt()
 
 last_message = ''
