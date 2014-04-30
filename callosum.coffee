@@ -211,6 +211,7 @@ CallosumContext::lookup = (cmd) ->
 callosum_context = new CallosumContext()
     .use('html')
     .use(require('../qnectar/pipeline/modules/redis').connect())
+    .use(require('../qnectar/pipeline/modules/mongo').connect())
 
 callosum_context.fns.alias = (inp, args, ctx, cb) ->
     alias = args[0]
