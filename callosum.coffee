@@ -88,8 +88,18 @@ class Callosum
         else
             @registered_clients[client_id].last_seen = now
 
+    saveMessage: (message) ->
+        save_message = 'mongo insert messages $!'
+        pipeline.execPipelines save_message, message, callosum_context, (err, saved_message) => # ...
+
     handleMessage: (client_id, message) ->
         log "<#{ client_id }>: #{ util.inspect message }" if VERBOSE
+
+        if message.type != 'heartbeat'
+            if !message.sender
+                message.sender = @registered_clients[client_id]?.name || client_id
+            if !message.suppress?
+                @saveMessage message
 
         switch message.type
 
