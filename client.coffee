@@ -62,11 +62,13 @@ class Client extends EventEmitter
         switch message.command
             
             when 'register?'
-                log "Callosum downtime, re-registering..."
+                log "Callosum downtime, re-registering...", color: 'red'
                 @sendRegister()
 
             else
                 if @commands[message.command]?
+                    log "COMMAND [#{ message.id }] #{ message.command }", color: 'blue'
+
                     # Command may call back response data or a full response message
                     @commands[message.command] message, (err, data, response) =>
                         if !response?
