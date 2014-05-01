@@ -6,7 +6,5 @@ notification_client = new Client
     commands:
         notify: (message, cb) ->
             exec "terminal-notifier -title 'Dr. Sproboto' -message '#{ message.args.join(' ').replace("'", "\\'") }'"
-            console.log 'test'
-            cb null, 'Notified.'
-
+            cb null, success: true
 
