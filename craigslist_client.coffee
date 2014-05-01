@@ -4,17 +4,21 @@ Client = require './client'
 async = require 'async'
 redis = require('redis').createClient()
 minimist = require 'minimist'
+qs = require 'querystring'
 
 # Build a sfbay craigslist URL out of parameters
 craigslist_base = "http://sfbay.craigslist.org"
-makeCraigslistURL = (cat, query) ->
-    "#{ craigslist_base }/search/#{ cat }/sfc?query=#{ query.trim().replace(/\W+/, '+') }"
+makeCraigslistURL = (cat, query, options) ->
+    options.query = query.trim().replace(/\W+/, '+')
+    u = "#{ craigslist_base }/search/#{ cat }/sfc?#{ qs.encode options }"
+    console.log u
+    return u
 
 seen_ids = []
 
 # Return an array of craigslist post objects
-searchCraigslist = (cat, query, cb) ->
-    request.get makeCraigslistURL(cat, query), (err, res, body) ->
+searchCraigslist = (cat, query, options, cb) ->
+    request.get makeCraigslistURL(cat, query, options), (err, res, body) ->
 
         $ = cheerio.load body
         posts = []
@@ -35,6 +39,7 @@ searchCraigslist = (cat, query, cb) ->
                 id: Number $row.data('pid')
                 title: $row.find('.pl a').text()
                 url: craigslist_base + $row.find('.pl a').attr('href')
+                price: Number $row.find('.l2 .price').text().match(/\$(\d+)/)?[1]
                 city: $row.find('.l2 .pnr small').text().match(/\((.+)\)/)?[1]
                 category: $row.find('.gc').text()
 
@@ -46,7 +51,9 @@ searchCraigslist = (cat, query, cb) ->
 postsSummary = (posts) ->
     post_texts = []
     for post in posts
-        post_text = post.title
+        post_text = ''
+        post_text += "$#{ post.price }: " if post.price?
+        post_text += post.title
         post_text += ' (' + post.city + ')' if post.city?
         post_text += ': ' + post.url
         post_texts.push post_text
@@ -62,6 +69,7 @@ postsSummary = (posts) ->
 handleCraigslistCommand = (message, cb) ->
     options = minimist message.args
     args = options._
+    delete options._
     console.log options
     console.log args
     command = args.shift()
@@ -70,7 +78,7 @@ handleCraigslistCommand = (message, cb) ->
     if command == 'search'
         cat = args.shift()
         query = args.join(' ')
-        searchCraigslist cat, query, (err, posts) ->
+        searchCraigslist cat, query, options, (err, posts) ->
             if options.summary?
                 posts_summary = postsSummary posts
                 cb null, posts_summary
@@ -81,7 +89,7 @@ handleCraigslistCommand = (message, cb) ->
     if command == 'check'
         cat = args.shift()
         query = args.join(' ')
-        searchCraigslist cat, query, (err, posts) ->
+        searchCraigslist cat, query, options, (err, posts) ->
 
             new_posts = []
             post_is_new = (post, _cb) ->
