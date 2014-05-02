@@ -46,6 +46,7 @@ update_hooks = (cb) ->
                                     name: 'web'
                                     config:
                                         url: config.github.webhook_url
+                                        content_type: 'json'
                                     events: ['push', 'issues']
                                 , (err, hook) ->
                                     if err
