@@ -90,7 +90,7 @@ class Callosum
 
     saveMessage: (message) ->
         save_message = 'mongo insert messages $!'
-        pipeline.execPipelines save_message, message, callosum_context, (err, saved_message) => # ...
+        callosum_pipeline.exec save_message, message, (err, saved_message) => # ...
 
     handleMessage: (client_id, message) ->
         log "<#{ client_id }>: #{ util.inspect message }" if VERBOSE
@@ -126,7 +126,7 @@ class Callosum
 
     handleScript: (client_id, message) ->
         log "<#{ client_id }> → SCRIPT [#{ message.id }] #{ message.script }", color: 'cyan'
-        pipeline.execPipelines message.script, message.data, callosum_context, (err, data) =>
+        callosum_pipeline.exec message.script, message.data, (err, data) =>
             if err
                 log 'ERROR ' + err, color: 'red'
                 @send client_id,
@@ -199,32 +199,32 @@ class Callosum
     startCheckups: ->
         setInterval (=> @checkup()), 500
 
-# Extend the qnectar pipeline context to look up functions
+# Extend the qnectar pipeline to look up functions
 # in the set of registered handlers.
 
-class CallosumContext extends pipeline.Context
-CallosumContext::lookup = (cmd) ->
+class CallosumPipeline extends pipeline.Pipeline
+CallosumPipeline::get = (t, k) ->
     found = super
-    if !found?
-        if callosum.registered_handlers[cmd]?
+    if !found? and t == 'fns'
+        if callosum.registered_handlers[k]?
             found = (inp, args, ctx, cb) =>
                 # Do the thing
-                to_client_id = callosum.selectHandler cmd
+                to_client_id = callosum.selectHandler k
                 command_message =
                     id: randomString 16
-                    command: cmd
+                    command: k
                     data: inp
                     args: args
                 callosum.send to_client_id, command_message
                 callosum.pending_commands[command_message.id] = cb
     return found
 
-callosum_context = new CallosumContext()
+callosum_pipeline = new CallosumPipeline()
     .use('html')
     .use(require('../qnectar/pipeline/modules/redis').connect())
     .use(require('../qnectar/pipeline/modules/mongo').connect())
 
-callosum_context.fns.alias = (inp, args, ctx, cb) ->
+callosum_pipeline.set 'fns', 'alias', (inp, args, ctx, cb) ->
     alias = args[0]
     script = args[1]
     if !script
@@ -254,8 +254,8 @@ start = ->
             script: $( redis get $! )
         }
     '''
-    pipeline.execPipelines bootstrap_redis_aliases, null, callosum_context, (err, saved_aliases) =>
+    callosum_pipeline.exec bootstrap_redis_aliases, (err, saved_aliases) =>
         for alias in saved_aliases
-            callosum_context.alias alias.alias, alias.script
+            callosum_pipeline.alias alias.alias, alias.script
 
 setTimeout start, 500
