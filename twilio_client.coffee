@@ -6,6 +6,9 @@ config = require './config'
 Client = require './client'
 wordwrap = require './utils/wordwrap'
 
+make_webhook_url = (s) ->
+    config.twilio.webhook_base_url + ':' + config.twilio.webhook_port + '/' + s
+
 twilio_api = twilio(config.twilio.account_sid, config.twilio.auth_token)
 
 twilio_client = new Client
@@ -19,15 +22,15 @@ twilio_client = new Client
 
             twilio_api.makeCall
                 to: call_to
-                from: config.twilio.number
-                url: config.twilio.say_url + encodeURIComponent call_say
+                from: config.twilio.from_number
+                url: make_webhook_url 'say/' + encodeURIComponent call_say
             , (err, response) ->
                 if err
                     console.log 'Error making Twilio call:'
                     console.log err
                     cb err
                 else
-                    cb null, succes: true
+                    cb null, success: true
 
         # Send an SMS
         sms: (msg, cb) ->
@@ -39,7 +42,7 @@ twilio_client = new Client
                 leader = if chunks.length > 1 then "#{ i+1 }/#{ chunks.length } " else ''
                 twilio_api.sendSms
                     to: sms_to
-                    from: config.twilio.number
+                    from: config.twilio.from_number
                     body: leader + chunks[i]
                 , (err, response) ->
                     if err
@@ -47,7 +50,7 @@ twilio_client = new Client
                         console.log err
                         cb err
                     else
-                        cb null, succes: true
+                        cb null, success: true
 
 server = http.createServer (req, res) ->
     if req.url == '/text'
@@ -55,7 +58,7 @@ server = http.createServer (req, res) ->
         form.parse req, (err, fields, files) ->
             twilio_client.send
                 script: fields.Body
-                sender: 'twilio:' + fields.From
+                sender: fields.From
 
     else if req.url == '/voice'
         resp = new twilio.TwimlResponse()
@@ -100,5 +103,5 @@ server = http.createServer (req, res) ->
         resp.say "I ain't understand that."
         res.end resp.toString()
 
-server.listen 5603, '0.0.0.0', -> console.log 'Twilio webhooks listening.'
+server.listen config.twilio.webhook_port, '0.0.0.0', -> console.log 'Twilio webhooks listening.'
 
