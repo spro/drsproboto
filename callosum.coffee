@@ -199,7 +199,8 @@ class Callosum
     startCheckups: ->
         setInterval (=> @checkup()), 500
 
-callosum = new Callosum()
+# Extend the qnectar pipeline context to look up functions
+# in the set of registered handlers.
 
 class CallosumContext extends pipeline.Context
 CallosumContext::lookup = (cmd) ->
@@ -240,13 +241,21 @@ callosum_context.fns.alias = (inp, args, ctx, cb) ->
         # Save in Redis
         redis.set 'aliases:' + alias, script
 
-# Get saved aliases
-bootstrap_redis_aliases = '''
-    redis keys aliases:* @: {
-        alias: $( split ":" @ 1 ),
-        script: $( redis get $! )
-    }
-'''
-pipeline.execPipelines bootstrap_redis_aliases, null, callosum_context, (err, saved_aliases) =>
-    for alias in saved_aliases
-        callosum_context.alias alias.alias, alias.script
+# Start the Callosum
+
+callosum = null
+start = ->
+    callosum = new Callosum()
+
+    # Get saved aliases
+    bootstrap_redis_aliases = '''
+        redis keys aliases:* @: {
+            alias: $( split ":" @ 1 ),
+            script: $( redis get $! )
+        }
+    '''
+    pipeline.execPipelines bootstrap_redis_aliases, null, callosum_context, (err, saved_aliases) =>
+        for alias in saved_aliases
+            callosum_context.alias alias.alias, alias.script
+
+setTimeout start, 500
