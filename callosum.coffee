@@ -5,6 +5,7 @@ _ = require 'underscore'
 pipeline = require '../qnectar/pipeline/pipeline'
 util = require 'util'
 redis = require('redis').createClient()
+coffee = require 'coffee-script'
 
 VERBOSE = false
 HEARTBEAT_INTERVAL = 5000
@@ -17,6 +18,7 @@ class Callosum
     pending_commands: {}
     registered_clients: {}
     registered_handlers: {}
+    triggers: []
 
     constructor: ->
         @socket = zmq.socket 'router'
@@ -121,8 +123,13 @@ class Callosum
             when 'response'
                 @handleResponse client_id, message
 
+            when 'event'
+                @handleEvent client_id, message
+
             else
                 log 'Unrecognized message: ' + util.inspect message
+
+    # SCRIPT messages are parsed and executed by the pipeline
 
     handleScript: (client_id, message) ->
         log "<#{ client_id }> → SCRIPT [#{ message.id }] #{ message.script }", color: 'cyan'
@@ -137,6 +144,9 @@ class Callosum
                     id: message.id
                     data: data
 
+    # COMMAND messages are sent to an appropriate handler; the ID of the 
+    # message is stored in `pending_commands` for handling the RESPONSE
+
     handleCommand: (client_id, message) ->
         log "<#{ client_id }> → COMMAND [#{ message.id }] #{ message.command }", color: 'blue'
         if handler_client_id = @selectHandler message.command
@@ -148,6 +158,10 @@ class Callosum
             # Send it off
             @send handler_client_id, message
 
+    # RESPONSE messages have an `rid` (response ID) to be looked up in
+    # `pending_commands` and sent back to the requesting client (if commanded
+    # via a message) or the stored callback called (if commanded through a pipeline)
+
     handleResponse: (client_id, message) ->
         log "<#{ client_id }> → RESPONSE [#{ message.rid }]", color: 'green'
         pending_command = @pending_commands[message.rid]
@@ -157,6 +171,30 @@ class Callosum
             @send pending_command.origin, message
         delete @pending_commands[message.rid]
 
+    # EVENT messages are stored and matched against the set of triggers
+
+    handleEvent: (client_id, message) ->
+        for trigger in @triggers
+            if trigger.match message
+                console.log "Matching trigger '#{ trigger.match_raw }'"
+                trigger.run message
+
+    # Create a trigger to be run from the 
+    # TODO: Save to redis like aliases
+
+    addTrigger: (options) ->
+        match_compiled = coffee.compile options.match, {bare: true}
+        run_compiled = coffee.compile options.run, {bare: true}
+        new_trigger =
+            match: (msg) -> eval match_compiled
+            run: (msg) -> eval run_compiled
+            match_raw: options.match
+            run_raw: options.run
+        @triggers.push new_trigger
+
+    # When a COMMAND message is being handled, a handler must be selected from the
+    # set of currently registered handlers.
+
     selectHandler: (command) ->
         if to_client_ids = @registered_handlers[command]
             # Get an available handler client
@@ -164,29 +202,9 @@ class Callosum
             to_client_ids.push to_client_id
             return to_client_id
 
-    # Handling remote commands
-    #
-    # A Handler is selected from those registered, and a message
-    # is sent to that handler with a unique `id` to be saved in
-    # `pending_commands`.
-    #
-    # Commands may occur in one of two ways, each has a key prefix
-    # to distinguish it in the `pending_commands` queue:
-    #
-    # * Sent directly from another client in a `command` message.
-    #   Prefix: `client:`
-    # * Triggered from within a pipeline execution while 
-    #   interpreting a `script` message.
-    #   Prefix: `pipeline:`
-    #
-    # When the command handler has a result, it will check the prefix
-    # they will respond with `rid` equal to that `id`.
-
-    handleRemoteCommand: (from_client_id, command_message) ->
-        log "#{ from_client_id } -> #{ util.inspect command_message }"
-
     # See if there are any dead clients by comparing their last
     # heartbeat times to the timeout interval. 
+
     checkup: ->
         now = new Date().getTime()
         for client_id, client of @registered_clients
@@ -195,6 +213,8 @@ class Callosum
             if (now - client.last_seen) > HEARTBEAT_TIMEOUT
 
                 @unregisterClient client_id
+
+    # Begin the checkup cycle
 
     startCheckups: ->
         setInterval (=> @checkup()), 500
@@ -247,15 +267,25 @@ callosum = null
 start = ->
     callosum = new Callosum()
 
-    # Get saved aliases
-    bootstrap_redis_aliases = '''
+    # Bootstrap saved aliases from Redis
+    get_redis_aliases = '''
         redis keys aliases:* @: {
             alias: $( split ":" @ 1 ),
             script: $( redis get $! )
         }
     '''
-    callosum_pipeline.exec bootstrap_redis_aliases, (err, saved_aliases) =>
+    callosum_pipeline.exec get_redis_aliases, (err, saved_aliases) =>
         for alias in saved_aliases
             callosum_pipeline.alias alias.alias, alias.script
 
+    # Bootstrap saved triggers from Redis
+    get_redis_triggers = '''
+        redis keys triggers:* || redis hgetall $!
+    '''
+    callosum_pipeline.exec get_redis_triggers, (err, saved_triggers) =>
+        for trigger in saved_triggers
+            callosum.addTrigger trigger
+
+# Let the machinery warm up a bit
 setTimeout start, 500
+
