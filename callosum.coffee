@@ -261,6 +261,13 @@ callosum_pipeline.set 'fns', 'alias', (inp, args, ctx, cb) ->
         # Save in Redis
         redis.set 'aliases:' + alias, script
 
+# Helper for running one-off scripts
+
+runScript = (script, inp={}) ->
+    callosum_pipeline.exec script, inp, (err, data) =>
+        if err
+            log 'ERROR ' + err, color: 'red'
+
 # Start the Callosum
 
 callosum = null
