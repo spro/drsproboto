@@ -176,7 +176,6 @@ class Callosum
     handleEvent: (client_id, message) ->
         for trigger in @triggers
             if trigger.match message
-                console.log "Matching trigger '#{ trigger.match_raw }'"
                 trigger.run message
 
     # Create a trigger to be run from the 
@@ -186,6 +185,7 @@ class Callosum
         match_compiled = coffee.compile options.match, {bare: true}
         run_compiled = coffee.compile options.run, {bare: true}
         new_trigger =
+            id: options.key.split(':').slice(1).join(':')
             match: (msg) -> eval match_compiled
             run: (msg) -> eval run_compiled
             match_raw: options.match
@@ -280,7 +280,7 @@ start = ->
 
     # Bootstrap saved triggers from Redis
     get_redis_triggers = '''
-        redis keys triggers:* || redis hgetall $!
+        redis keys triggers:* @: { key: ., } || extend $( redis hgetall $( @ key ) )
     '''
     callosum_pipeline.exec get_redis_triggers, (err, saved_triggers) =>
         for trigger in saved_triggers
