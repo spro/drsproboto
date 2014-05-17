@@ -244,22 +244,13 @@ callosum_pipeline = new CallosumPipeline()
     .use(require('../qnectar/pipeline/modules/redis').connect())
     .use(require('../qnectar/pipeline/modules/mongo').connect())
 
-callosum_pipeline.set 'fns', 'alias', (inp, args, ctx, cb) ->
-    alias = args[0]
-    script = args[1]
-    if !script
-        # Showing an alias
-        cb null, ctx.env.aliases[alias]
-    else
-        # Setting an alias
-        ctx.alias alias, script
-        cb null,
-            success: true
-            alias: alias
-            script: script
+callosum_pipeline.alias = (a, s) ->
+    # Default aliasing
+    @set 'fns', a, pipeline.through s
+    @set 'aliases', a, s
 
-        # Save in Redis
-        redis.set 'aliases:' + alias, script
+    # Save in Redis
+    redis.set 'aliases:' + a, s
 
 # Helper for running one-off scripts
 
