@@ -21,6 +21,7 @@ class XMPPClient extends Client
                 receiver = config.xmpp.default_receiver
             body = msg.summary || msg.data || msg.args.slice(1).join(' ')
             xmpp.send receiver, stringify body
+            cb null, success: true
 
 xmpp_client = new XMPPClient
 
