@@ -13,6 +13,7 @@ class Client extends EventEmitter
     name: 'Generic Client'
     callosum_address: config.callosum.address
     commands: []
+    pending_requests: {}
 
     constructor: (options) ->
         _.extend @, options
@@ -66,7 +67,14 @@ class Client extends EventEmitter
                 @sendRegister()
 
             else
-                if @commands[message.command]?
+
+                # Handle a response to a script
+                if pending_request = @pending_requests[message.id]
+                    pending_request(message)
+                    delete @pending_requests[message.id]
+
+                # Handle a command that this client has registered for
+                else if @commands[message.command]?
                     log "COMMAND [#{ message.id }] #{ message.command }", color: 'blue'
 
                     # Command may call back response data or a full response message
@@ -79,6 +87,13 @@ class Client extends EventEmitter
                         @send response
 
         @emit 'message', message
+
+    runScript: (script, cb) ->
+        sent_message = @send
+            type: 'script'
+            script: script
+        @pending_requests[sent_message.id] = (message) =>
+            cb null, message.data
 
 if require.main == module
     new Client
