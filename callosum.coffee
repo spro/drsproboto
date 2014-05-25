@@ -276,11 +276,11 @@ start = ->
         for alias in saved_aliases
             callosum_pipeline.alias alias.alias, alias.script
 
-    # Bootstrap saved triggers from Redis
-    get_redis_triggers = '''
-        redis keys triggers:* @: { key: ., } || extend $( redis hgetall $( @ key ) )
+    # Bootstrap saved triggers from Mongo
+    get_mongo_triggers = '''
+        mongo find triggers
     '''
-    callosum_pipeline.exec get_redis_triggers, (err, saved_triggers) =>
+    callosum_pipeline.exec get_mongo_triggers, (err, saved_triggers) =>
         for trigger in saved_triggers
             callosum.addTrigger trigger
 
