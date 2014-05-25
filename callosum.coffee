@@ -185,7 +185,6 @@ class Callosum
         match_compiled = coffee.compile options.match, {bare: true}
         run_compiled = coffee.compile options.run, {bare: true}
         new_trigger =
-            id: options.key.split(':').slice(1).join(':')
             match: (msg) -> eval match_compiled
             run: (msg) -> eval run_compiled
             match_raw: options.match
@@ -219,6 +218,40 @@ class Callosum
     startCheckups: ->
         setInterval (=> @checkup()), 500
 
+# Bootstrapping
+# =============
+
+# Bootstrap saved aliases from Redis
+# ----------------------------------
+
+updateAliases = (cb) ->
+    get_redis_aliases = '''
+        redis keys aliases:* @: {
+            alias: $( split ":" @ 1 ),
+            script: $( redis get $! )
+        }
+    '''
+    callosum_pipeline.exec get_redis_aliases, (err, saved_aliases) =>
+        for alias in saved_aliases
+            callosum_pipeline.alias alias.alias, alias.script
+        cb null, saved_aliases if cb?
+
+# Bootstrap saved triggers from Mongo
+# -----------------------------------
+
+reloadTriggers = (cb) ->
+    get_mongo_triggers = '''
+        mongo find triggers
+    '''
+    callosum_pipeline.exec get_mongo_triggers, (err, saved_triggers) =>
+        callosum.triggers = []
+        for trigger in saved_triggers
+            callosum.addTrigger trigger
+        cb null, saved_triggers if cb?
+
+# Pipeline Setup
+# ==============
+
 # Extend the qnectar pipeline to look up functions
 # in the set of registered handlers.
 
@@ -243,8 +276,31 @@ callosum_pipeline = new CallosumPipeline()
     .use('html')
     .use(require('../qnectar/pipeline/modules/redis').connect())
     .use(require('../qnectar/pipeline/modules/mongo').connect())
+    .use
+
+        'reload-triggers': (inp, args, ctx, cb) ->
+            reloadTriggers cb
+
+        'delete-triggers': (inp, args, ctx, cb) ->
+            delete_trigger_script = "mongo remove triggers $( obj _id #{ args[0] })"
+            callosum_pipeline.exec delete_trigger_script, inp, (err, n_removed) ->
+                reloadTriggers (err, reloaded) ->
+                    cb null, n_removed
+
+        'update-triggers': (inp, args, ctx, cb) ->
+            update_trigger_script = "mongo update triggers $( obj _id #{ args[0] }) $( obj \\$set $! )"
+            callosum_pipeline.exec update_trigger_script, inp, (err, n_updated) ->
+                reloadTriggers (err, reloaded) ->
+                    cb null, n_updated
+
+        'create-triggers': (inp, args, ctx, cb) ->
+            create_trigger_script = "mongo insert triggers $!"
+            callosum_pipeline.exec create_trigger_script, inp, (err, inserted) ->
+                callosum.addTrigger inp
+                cb null, inserted[0]
 
 callosum_pipeline.alias = (a, s) ->
+
     # Default aliasing
     @set 'fns', a, pipeline.through s
     @set 'aliases', a, s
@@ -255,9 +311,13 @@ callosum_pipeline.alias = (a, s) ->
 # Helper for running one-off scripts
 
 runScript = (script, inp={}) ->
+    log "SCRIPT #{ script }", color: 'cyan'
     callosum_pipeline.exec script, inp, (err, data) =>
         if err
             log 'ERROR ' + err, color: 'red'
+
+# Boot
+# ====
 
 # Start the Callosum
 
@@ -265,24 +325,8 @@ callosum = null
 start = ->
     callosum = new Callosum()
 
-    # Bootstrap saved aliases from Redis
-    get_redis_aliases = '''
-        redis keys aliases:* @: {
-            alias: $( split ":" @ 1 ),
-            script: $( redis get $! )
-        }
-    '''
-    callosum_pipeline.exec get_redis_aliases, (err, saved_aliases) =>
-        for alias in saved_aliases
-            callosum_pipeline.alias alias.alias, alias.script
-
-    # Bootstrap saved triggers from Redis
-    get_redis_triggers = '''
-        redis keys triggers:* @: { key: ., } || extend $( redis hgetall $( @ key ) )
-    '''
-    callosum_pipeline.exec get_redis_triggers, (err, saved_triggers) =>
-        for trigger in saved_triggers
-            callosum.addTrigger trigger
+    updateAliases()
+    reloadTriggers()
 
 # Let the machinery warm up a bit
 setTimeout start, 500
