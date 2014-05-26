@@ -88,10 +88,14 @@ class Client extends EventEmitter
 
         @emit 'message', message
 
-    runScript: (script, cb) ->
+    runScript: (script, data, cb) ->
+        if !cb?
+            cb = data
+            data = null
         sent_message = @send
             type: 'script'
             script: script
+            data: data
         @pending_requests[sent_message.id] = (message) =>
             cb null, message.data
 
