@@ -1,4 +1,5 @@
 Client = require './client'
+async = require 'async'
 config = require '../drsproboto_node/config'
 _ = require 'underscore'
 ansi = require('ansi')(process.stdout)
@@ -19,8 +20,7 @@ restartStream = ->
 
 startStream = ->
     track_keywords = watching.filter (k) -> k[0] != '@'
-    track_users = watching.filter((k) -> k[0] == '@').map (k) ->
-        k.slice(1) # Trim '@' from beginning
+    track_users = watching.filter((k) -> k[0] == '@')
 
     # Watch keywords
     if track_keywords.length > 0
@@ -33,13 +33,20 @@ startStream = ->
     # Watch users
     if track_users.length > 0
         console.log "Tracking users: " + track_users.join(', ')
-        user_stream = twitter.stream 'statuses/filter',
-            follow: track_users.join(',')
-            language: 'en'
-        user_stream.on 'tweet', printAndSendTweet
+        async.map track_users, getUserId, (err, user_ids) ->
+            console.log "User IDs: " + user_ids.join(', ')
+            user_stream = twitter.stream 'statuses/filter',
+                follow: user_ids.join(',')
+                language: 'en'
+            user_stream.on 'tweet', printAndSendTweet
 
     # Show ignoring
     console.log "Ignoring keywords: " + ignoring.join(', ')
+
+getUserId = (screen_name, cb) ->
+    twitter.get 'users/lookup', {screen_name: screen_name.slice(1)}, (err, users) ->
+        user = users[0]
+        cb err, user.id
 
 # Output and send tweet as event
 printAndSendTweet = (tweet) ->
