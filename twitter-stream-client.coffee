@@ -1,6 +1,6 @@
 Client = require './client'
 async = require 'async'
-config = require '../drsproboto_node/config'
+config = require './config'
 _ = require 'underscore'
 ansi = require('ansi')(process.stdout)
 Twitter = require 'twit'
