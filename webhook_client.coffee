@@ -32,5 +32,14 @@ app.post '/events/:event_type', (req, res) ->
         data: event_data
     res.end 'ok'
 
+app.get '/events/:event_type', (req, res) ->
+    event_type = req.params.event_type
+    event_data = JSON.parse req.query.message
+    client.send
+        type: 'event'
+        event: event_type
+        data: event_data
+    res.end 'ok'
+
 app.listen 5010, -> console.log "Webhook server listening on :5010"
 
