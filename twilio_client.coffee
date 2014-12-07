@@ -53,10 +53,12 @@ twilio_client = new Client
                         cb null, success: true
 
 server = http.createServer (req, res) ->
-    if req.url == '/text'
+    console.log "[#{ req.method }] #{ req.url }"
+    if req.url == '/receive'
         form = new formidable.IncomingForm()
         form.parse req, (err, fields, files) ->
             twilio_client.send
+                type: 'script'
                 script: fields.Body
                 sender: fields.From
 
@@ -103,5 +105,8 @@ server = http.createServer (req, res) ->
         resp.say "I ain't understand that."
         res.end resp.toString()
 
-server.listen config.twilio.webhook_port, '0.0.0.0', -> console.log 'Twilio webhooks listening.'
+server.listen config.twilio.webhook_port, '0.0.0.0', ->
+    console.log 'Twilio webhooks listening on ' +
+        config.twilio.webhook_base_url + ':' +
+        config.twilio.webhook_port
 

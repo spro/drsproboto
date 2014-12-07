@@ -1,6 +1,6 @@
 Client = require './client'
 xmpp = require 'simple-xmpp'
-config = require '../drsproboto_node/config'
+config = require './config'
 {log, randomString, stringify} = require './helpers'
 
 xmpp.connect config.xmpp

@@ -34,7 +34,7 @@ scheduler_client = new Client
         in: (message, cb) ->
             matched = message.args.join(' ').match /^(\d+) ?(\w+) (.*)/
             if not matched
-                cb "Don't quite know what you mean."
+                cb null, "Don't quite know what you mean."
                 return
             t = Number matched[1]
             tt = matched[2]

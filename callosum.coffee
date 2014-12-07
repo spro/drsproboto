@@ -6,6 +6,7 @@ pipeline = require '../qnectar/pipeline/pipeline'
 util = require 'util'
 redis = require('redis').createClient()
 coffee = require 'coffee-script'
+config = require './config'
 
 VERBOSE = false
 HEARTBEAT_INTERVAL = 5000
@@ -275,7 +276,7 @@ CallosumPipeline::get = (t, k) ->
 callosum_pipeline = new CallosumPipeline()
     .use('html')
     .use(require('../qnectar/pipeline/modules/redis').connect())
-    .use(require('../qnectar/pipeline/modules/mongo').connect())
+    .use(require('../qnectar/pipeline/modules/mongo').connect(config.mongo))
     .use
 
         'reload-triggers': (inp, args, ctx, cb) ->
