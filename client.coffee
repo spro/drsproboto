@@ -5,6 +5,7 @@ util = require 'util'
 config = require './config'
 _ = require 'underscore'
 
+VERBOSE = process.env.DRSPROBOTO_VERBOSE || false
 HEARTBEAT_INTERVAL = 5000
 
 class Client extends EventEmitter
@@ -20,7 +21,7 @@ class Client extends EventEmitter
         @socket = zmq.socket 'dealer'
         @socket.identity = @id
         @socket.connect @callosum_address
-        log "#{ @name } connected to #{ @callosum_address }"
+        log "#{ @name } connected to #{ @callosum_address }" if VERBOSE
 
         @socket.on 'message', (message_json) =>
             @handleMessage JSON.parse message_json
@@ -75,7 +76,7 @@ class Client extends EventEmitter
 
                 # Handle a command that this client has registered for
                 else if @commands[message.command]?
-                    log "COMMAND [#{ message.id }] #{ message.command }", color: 'blue'
+                    log "COMMAND [#{ message.id }] #{ message.command }(#{ (message.args||[]).join(', ') })", color: 'blue'
 
                     # Command may call back response data or a full response message
                     @commands[message.command] message, (err, data, response) =>
