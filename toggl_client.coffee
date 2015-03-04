@@ -16,7 +16,29 @@ state =
     current_entries: {}
     projects: {}
 
-toggl_service = new somata.Service 'drsproboto:toggl'
+attachProject = (entry) ->
+    entry.project = state.projects.filter((p) -> p.id == entry.pid)[0]
+
+startEntry = (user_slug, project_slug, entry_description, cb) ->
+    getProject project_slug, (err, project) ->
+
+        new_entry =
+            description: entry_description
+            pid: project?.id
+
+        toggls[user_slug].startTimeEntry new_entry, (err, started) ->
+            attachProject started
+            cb err, started
+
+stopUser = (user_slug, cb) ->
+    if entry = state.current_entries[user_slug]
+        toggls[user_slug].stopTimeEntry entry.id, (err, closed_entry) ->
+            console.log closed_entry
+            duration = moment.duration closed_entry.duration, 'seconds'
+            cb? null, "Stopped '#{entry.description}' after #{duration.humanize()}"
+            #delete state.current_entries[user_slug]
+    else
+        cb? null, "Nothing to stop."
 
 checkCurrent = (user_slug) ->
     toggls[user_slug].getCurrentTimeEntry (err, current_entry) ->
@@ -26,6 +48,7 @@ checkCurrent = (user_slug) ->
             if state.current_entries[user_slug]?
                 console.log 'entry was stopped:', state.current_entries[user_slug].description
                 toggls[user_slug].getTimeEntryData state.current_entries[user_slug].id, (err, stopped_entry) ->
+                    toggl_service.publish 'stop', {entry: stopped_entry, user: user_slug}
                     console.log 'after', stopped_entry.duration
                     delete state.current_entries[user_slug]
 
@@ -33,10 +56,12 @@ checkCurrent = (user_slug) ->
                 console.log 'nothing to do'
 
         else
+            attachProject current_entry
 
             if state.current_entries[user_slug]?.id != current_entry.id
-                ms_since = moment().diff(current_entry.start)
-                if ms_since < 10000
+                elapsed = moment().diff(current_entry.start)
+                if elapsed < 10000
+                    toggl_service.publish 'start', {entry: current_entry, user: user_slug}
                     console.log 'encountered new entry:', current_entry.description
                     state.current_entries[user_slug] = current_entry
 
@@ -46,8 +71,10 @@ checkCurrent = (user_slug) ->
 
             else
                 console.log 'same on that entry', current_entry
-                ms_since = moment().diff(current_entry.start)
-                console.log 'continuing from', moment.duration(ms_since).humanize()
+                elapsed = moment().diff(current_entry.start)
+                current_entry.elapsed = elapsed
+                toggl_service.publish 'progress', {entry: current_entry, user: user_slug}
+                console.log 'continuing from', moment.duration(elapsed).humanize()
                 state.current_entries[user_slug] = current_entry
 
 setInterval ->
@@ -79,29 +106,18 @@ toggl_client = new Client
         start: (message, cb) ->
             [user_slug, project_slug] = message.args
             entry_description = message.args.slice(2).join(' ')
-
-            getProject project_slug, (err, project) ->
-                if !project
-                    return cb "Couldn't find project"
-
-                new_entry =
-                    description: entry_description
-                    pid: project.id
-
-                toggls[user_slug].startTimeEntry new_entry, (err, entry) ->
-                    console.log err if err
-                    #state.current_entries[user_slug] = entry
-                    cb null, "Started '#{entry.description}' on #{project.name}..."
+            startEntry user_slug, project_slug, entry_description, (err, entry) ->
+                console.log err if err
+                #state.current_entries[user_slug] = entry
+                summary = "Started '#{entry.description}'"
+                summary += " on #{project.name}..." if project
+                cb? null, summary
 
         stop: (message, cb) ->
             [user_slug] = message.args
+            stopUser user_slug, cb
 
-            if entry = state.current_entries[user_slug]
-                toggls[user_slug].stopTimeEntry entry.id, (err, closed_entry) ->
-                    console.log closed_entry
-                    duration = moment.duration closed_entry.duration, 'seconds'
-                    cb null, "Stopped '#{entry.description}' after #{duration.humanize()}"
-                    #delete state.current_entries[user_slug]
-            else
-                cb null, "Nothing to stop."
+toggl_service = new somata.Service 'drsproboto:toggl',
+    start: startEntry
+    stop: stopUser
 
